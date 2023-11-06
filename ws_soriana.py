@@ -1,12 +1,80 @@
+import multiprocessing
+
 import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
+# Función para realizar el scraping de Soriana y almacenar los resultados en el diccionario compartido
+def scrape_soriana(urls, shared_dict, shared_dict_total):
+    # Listas para almacenar los productos de cada categoría de resolución
+    resolution_1_data = []
+    resolution_2_data = []
+    resolution_3_data = []
+
+    for URL in urls:
+        driver = setup_driver()
+        # Abre la URL
+        driver.get(URL)
+        wait = WebDriverWait(driver, 10)
+
+        # Desplazarse por la página para asegurar que se cargan todos los productos
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        # Esperar hasta que los productos se carguen después de desplazarse
+        wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.product-tile--wrapper')))
+
+        # Analizar el contenido de la página con BeautifulSoup
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        productos = soup.select('div.product-tile--wrapper')
+
+        data = []
+        for producto in productos:
+            try:
+                titulo = producto.select_one('a.product-tile--link').get_text(strip=True)
+                precio = producto.select_one('span.price-plp').get_text(strip=True)
+                url_imagen = producto.select_one('img.tile-image')['src'].strip()
+                resolucion = extract_resolution(titulo)
+                # Añade la información del producto a la lista
+                data.append({
+                    'Titulo': titulo,
+                    'Precio': precio,
+                    'Resolución': resolucion,
+                    'URL Imagen': url_imagen,
+                    'Tienda': 'Soriana'
+                })
+            except Exception as e:
+                print(f"Error al procesar un producto: {e}")
+
+        # Agregar los productos a las listas de cada categoría de resolución
+        resolution_1_data.extend([product for product in data if product['Resolución'] == 'HD 1366 x 768'])
+        resolution_2_data.extend([product for product in data if product['Resolución'] == 'FHD 1920 x 1080'])
+        resolution_3_data.extend([product for product in data if product['Resolución'] == '4K UHD 3840 x 2160'])
+
+        # Cerrar el WebDriver
+        driver.quit()
+        # update shared_dict_total with data
+        shared_dict_total['soriana'].extend(data)
+
+    # Encontrar el producto más económico en cada categoría de resolución después de procesar todas las URLs
+    resolution_1_min = min(resolution_1_data, key=lambda x: x['Precio'])
+    resolution_2_min = min(resolution_2_data, key=lambda x: x['Precio'])
+    resolution_3_min = min(resolution_3_data, key=lambda x: x['Precio'])
+
+    # Almacenar los productos más económicos en el diccionario compartido
+    # Only if actual value is worse than the new one
+    if shared_dict.get('resolution_1', {}).get('Precio', '0') > resolution_1_min['Precio']:
+        shared_dict['resolution_1'] = resolution_1_min
+    if shared_dict.get('resolution_2', {}).get('Precio', '0') > resolution_2_min['Precio']:
+        shared_dict['resolution_2'] = resolution_2_min
+    if shared_dict.get('resolution_3', {}).get('Precio', '0') > resolution_3_min['Precio']:
+        shared_dict['resolution_3'] = resolution_3_min
+
+
+# Web driver para Chrome
 def setup_driver():
     # Web driver para EDGE
     # s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
@@ -37,57 +105,26 @@ def extract_resolution(title):
         return "FHD 1920 x 1080"
 
 
-def scrape_soriana(URL):
-    driver = setup_driver()
-    # Abre la URL
-    driver.get(URL)
-    wait = WebDriverWait(driver, 10)
+if __name__ == '__main__':
+    # Crear un diccionario compartido para almacenar los resultados
+    shared_data = multiprocessing.Manager().dict()
 
-    # Desplazarse por la página para asegurar que se cargan todos los productos
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    # Esperar hasta que los productos se carguen después de desplazarse
-    wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.product-tile--wrapper')))
+    # URLs a scrapear en Soriana
+    soriana_urls = [
+        'https://www.soriana.com/buscar?q=pantalla+hd&search-button=',
+        'https://www.soriana.com/buscar?q=Pantalla+JVC+43+Pulg+Roku+Framless&search-button=',
+        'https://www.soriana.com/buscar?q=Pantalla+4k&search-button='
+    ]
 
-    # Analizar el contenido de la página con BeautifulSoup
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
-    productos = soup.select('div.product-tile--wrapper')
+    process_soriana = multiprocessing.Process(target=scrape_soriana, args=(soriana_urls, shared_data, []))
+    process_soriana.start()
+    process_soriana.join()
 
-    data = []
-    for producto in productos:
-        try:
-            titulo = producto.select_one('a.product-tile--link').get_text(strip=True)
-            precio = producto.select_one('span.price-plp').get_text(strip=True)
-            url_imagen = producto.select_one('img.tile-image')['src'].strip()
-            resolucion = extract_resolution(titulo)
-            # Añade la información del producto a la lista
-            data.append({
-                'Titulo': titulo,
-                'Precio': precio,
-                'Resolución': resolucion,
-                'URL Imagen': url_imagen,
-                'Tienda': 'Soriana'
-            })
-        except Exception as e:
-            print(f"Error al procesar un producto: {e}")
-    # Cerrar el WebDriver
-    driver.quit()
-    return data
+    # Recuperar los resultados del diccionario compartido
+    soriana_data = shared_data.get('soriana', [])
 
+    # Crear un DataFrame con los datos de Soriana
+    soriana_df = pd.DataFrame(soriana_data)
 
-# URLs a scrapear
-urls = [
-    'https://www.soriana.com/buscar?q=pantalla+hd&search-button=',
-    'https://www.soriana.com/buscar?q=Pantalla+JVC+43+Pulg+Roku+Framless&search-button=',
-    'https://www.soriana.com/buscar?q=Pantalla+4k&search-button='
-]
-
-# DataFrame para recopilar los datos de todas las URLs
-all_tvs = pd.DataFrame()
-
-for url in urls:
-    # Scrapear cada URL y añadir los datos al DataFrame
-    tvs_data = scrape_soriana(url)
-    all_tvs = pd.concat([all_tvs, pd.DataFrame(tvs_data)], ignore_index=True)
-
-# Guardar los datos en un archivo Excel
-all_tvs.to_excel('pantallas_soriana.xlsx', index=False)
+    # Guardar los datos en un archivo Excel
+    # soriana_df.to_excel('pantallas_soriana.xlsx', index=False)

@@ -1,34 +1,13 @@
-import re
-
 import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+import re
+import multiprocessing
 
 
-def setup_driver():
-    # Web driver para EDGE
-    # s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
-    # driver = webdriver.Edge(service=s)
-    # Define los headers para el request HTTP
-    # headers = {
-    #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
-    # }
-
-    # Web driver para Chrome
-    webdriver_path = 'C:/Users/Alejandro/chrome/chromedriver.exe'
-    options = Options()
-    options.add_experimental_option("excludeSwitches", ["enable-logging"])
-    prefs = {
-        "profile.default_content_setting_values.notifications": 2,
-        "profile.default_content_setting_values.geolocation": 2,
-    }
-    options.add_experimental_option("prefs", prefs)
-    driver = webdriver.Chrome(webdriver_path, options=options)
-    return driver
-
-
-def scrape_pcel(urls):
+# Función para realizar el scraping de PCEL y almacenar los resultados en el diccionario compartido
+def scrape_pcel(urls, shared_dict, shared_dict_total):
     monitors = []
     regex = re.compile(
         r"(?P<tipo>[\w\s]+)\sde\s(?P<pulgadas>\d+(\.\d+)?\")?.*?Resolución\s*(?P<resolucion>[\d\sx]+)?.*?(?P<ms>\d+\sms)?")
@@ -69,23 +48,84 @@ def scrape_pcel(urls):
                 soup = BeautifulSoup(page_source, 'html.parser')
             else:
                 next_page = False
-
+        # Cerrar el WebDriver
         driver.quit()
-    return monitors
+
+    # Lista para almacenar los datos de productos de cada categoría de resolución
+    resolution_1_data = []
+    resolution_2_data = []
+    resolution_3_data = []
+
+    for monitor in monitors:
+        if '1366 x 768' in monitor['resolucion']:
+            resolution_1_data.append(monitor)
+        elif '1920 x 1080' in monitor['resolucion']:
+            resolution_2_data.append(monitor)
+        elif '3840 x 2160' in monitor['resolucion']:
+            resolution_3_data.append(monitor)
+
+    # Encontrar el producto más económico en cada categoría de resolución
+    resolution_1_min = min(resolution_1_data, key=lambda x: x['Precio'])
+    resolution_2_min = min(resolution_2_data, key=lambda x: x['Precio'])
+    resolution_3_min = min(resolution_3_data, key=lambda x: x['Precio'])
+
+    # Almacenar los productos más económicos en el diccionario compartido
+    # Only if actual value is worse than the new one
+    if shared_dict.get('resolution_1', {}).get('Precio', '0') > resolution_1_min['Precio']:
+        shared_dict['resolution_1'] = resolution_1_min
+    if shared_dict.get('resolution_2', {}).get('Precio', '0') > resolution_2_min['Precio']:
+        shared_dict['resolution_2'] = resolution_2_min
+    if shared_dict.get('resolution_3', {}).get('Precio', '0') > resolution_3_min['Precio']:
+        shared_dict['resolution_3'] = resolution_3_min
+
+    # update shared_dict_total with monitors
+    shared_dict_total['pcel'].extend(monitors)
 
 
-# URLs a scrapear en PCEL
-pcel_urls = [
-    'https://pcel.com/index.php?route=product/search&filter_name=televisión 1366',
-    'https://pcel.com/index.php?route=product/search&filter_name=televisión 1920',
-    'https://pcel.com/index.php?route=product/search&filter_name=Televisi%C3%B3n%203840'
-]
+# Web driver para Chrome
+def setup_driver():
+    # Web driver para EDGE
+    # s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
+    # driver = webdriver.Edge(service=s)
+    # Define los headers para el request HTTP
+    # headers = {
+    #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
+    # }
 
-# Obtener los datos de PCEL
-pcel_data = scrape_pcel(pcel_urls)
+    # Web driver para Chrome
+    webdriver_path = 'C:/Users/Alejandro/chrome/chromedriver.exe'
+    options = Options()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    prefs = {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_setting_values.geolocation": 2,
+    }
+    options.add_experimental_option("prefs", prefs)
+    driver = webdriver.Chrome(webdriver_path, options=options)
+    return driver
 
-# Crear un DataFrame para los datos de PCEL
-pcel_df = pd.DataFrame(pcel_data)
 
-# Guardar los datos en un archivo Excel
-pcel_df.to_excel('pantallas_pcel.xlsx', index=False)
+if __name__ == '__main__':
+    # Crear un diccionario compartido para almacenar los resultados
+    shared_data = multiprocessing.Manager().dict()
+
+    # URLs a scrapear en PCEL
+    pcel_urls = [
+        'https://pcel.com/index.php?route=product/search&filter_name=televisión 1366',
+        'https://pcel.com/index.php?route=product/search&filter_name=televisión 1920',
+        'https://pcel.com/index.php?route=product/search&filter_name=Televisi%C3%B3n%203840'
+    ]
+
+    # Crear procesos para realizar el scraping de PCEL
+    process_pcel = multiprocessing.Process(target=scrape_pcel, args=(pcel_urls, shared_data, []))
+    process_pcel.start()
+    process_pcel.join()
+
+    # Recuperar los resultados del diccionario compartido
+    pcel_data = shared_data.get('data', [])
+
+    # Crear un DataFrame con los datos de PCEL
+    pcel_df = pd.DataFrame(pcel_data)
+
+    # Guardar los datos en un archivo Excel
+    pcel_df.to_excel('pantallas_pcel.xlsx', index=False)

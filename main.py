@@ -1,16 +1,154 @@
-# This is a sample Python script.
+import multiprocessing
 
-# Press Mayús+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+from ws_cyberpuerta import scrape_cyberpuerta
+from ws_pcel import scrape_pcel
+from ws_soriana import scrape_soriana
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def setup_driver():
+    # Web driver para EDGE
+    # s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
+    # driver = webdriver.Edge(service=s)
+
+    # Web driver para Chrome
+    webdriver_path = 'C:/Users/Alejandro/chrome/chromedriver.exe'
+    options = Options()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    prefs = {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_setting_values.geolocation": 2,
+    }
+    options.add_experimental_option("prefs", prefs)
+    driver = webdriver.Chrome(webdriver_path, options=options)
+    return driver
 
 
-# Press the green button in the gutter to run the script.
+# Define la función para extraer la resolución del título
+def extract_resolution(title):
+    if "4K" in title or "UHD" in title or "3840" in title:
+        return "4K UHD 3840 x 2160"
+    elif "FHD" in title or "1920" in title:
+        return "FHD 1920 x 1080"
+    elif "HD" in title or "1366" in title:
+        return "HD 1366 x 768"
+    else:
+        return "FHD 1920 x 1080"
+
+
+# Función para cerrar pop-ups
+def close_popups(driver_):
+    close_button_selectors = [
+        'button.close',
+        'div.popup-close',
+        'a.popup-close',
+    ]
+
+    for selector in close_button_selectors:
+        try:
+            close_button = WebDriverWait(driver_, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+            )
+            close_button.click()
+        except Exception as e:
+            print(f"No se encontró o no se pudo hacer clic en el pop-up con el selector: {selector}. Error: {e}")
+
+
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    # Creamos un diccionario compartido para almacenar los productos más económicos
+    shared_dict = multiprocessing.Manager().dict()
+    shared_dict_total = multiprocessing.Manager().dict(soriana=[], pcel=[], cyberpuerta=[])
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    lock = multiprocessing.Lock()
+
+    # Creamos una lista para almacenar todos los datos de productos
+    all_data = []
+
+    # Definimos las URLs de cada tienda
+    soriana_urls = [
+        'https://www.soriana.com/buscar?q=pantalla+hd&search-button=',
+        'https://www.soriana.com/buscar?q=Pantalla+JVC+43+Pulg+Roku+Framless&search-button=',
+        'https://www.soriana.com/buscar?q=Pantalla+4k&search-button='
+    ]
+    pcel_urls = [
+        'https://pcel.com/index.php?route=product/search&filter_name=televisión 1366',
+        'https://pcel.com/index.php?route=product/search&filter_name=televisión 1920',
+        'https://pcel.com/index.php?route=product/search&filter_name=Televisi%C3%B3n%203840'
+    ]
+    cyberpuerta_urls = [
+        'https://www.cyberpuerta.mx/Audio-y-Video/TV-y-Pantallas/Pantallas/Filtro/Tipo-HD/HD/',
+        'https://www.cyberpuerta.mx/Pantallas-FullHD/',
+        'https://www.cyberpuerta.mx/TV-4K-Ultra-HD/'
+    ]
+
+    # Creamos procesos para cada tienda
+    soriana_process = multiprocessing.Process(target=scrape_soriana, args=(soriana_urls, shared_dict, shared_dict_total))
+    pcel_process = multiprocessing.Process(target=scrape_pcel, args=(pcel_urls, shared_dict, shared_dict_total))
+    cyberpuerta_process = multiprocessing.Process(target=scrape_cyberpuerta, args=(cyberpuerta_urls, shared_dict, shared_dict_total))
+
+    # Iniciamos los procesos
+    soriana_process.start()
+    pcel_process.start()
+    cyberpuerta_process.start()
+
+    # Esperamos a que todos los procesos terminen
+    soriana_process.join()
+    print("Soriana terminado")
+    pcel_process.join()
+    print("PCEL terminado")
+    cyberpuerta_process.join()
+    print("Cyberpuerta terminado")
+
+    # Obtenemos los productos más económicos de cada categoría
+    resolution_1 = shared_dict['resolution_1']
+    resolution_2 = shared_dict['resolution_2']
+    resolution_3 = shared_dict['resolution_3']
+
+    # Imprimimos los productos más económicos
+    print("Producto más económico (1366 x 768 Pixeles):")
+    print(resolution_1)
+
+    print("Producto más económico (1920 x 1080 Pixeles):")
+    print(resolution_2)
+
+    print("Producto más económico (3840 x 2160 Pixeles):")
+    print(resolution_3)
+
+    # Convert shared_dict_total to a list
+    print(shared_dict_total)
+
+    # Convertimos la lista de datos en un DataFrame
+    data_df = pd.DataFrame(shared_dict_total)
+    print(data_df)
+
+    # # Creamos gráficas de caja por tamaño/presentación del producto
+    # import matplotlib.pyplot as plt
+    #
+    # plt.figure(figsize=(10, 6))
+    # data_df.boxplot(column='Precio', by='Resolución', grid=False)
+    # plt.title('Gráfica de Caja por Resolución')
+    # plt.ylabel('Precio')
+    # plt.xlabel('Resolución')
+    # plt.xticks(rotation=45)
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # # Creamos una gráfica de dispersión
+    # import seaborn as sns
+    #
+    # sns.set(style='whitegrid')
+    # plt.figure(figsize=(12, 6))
+    # sns.scatterplot(data=data_df, x='Titulo', y='Precio', hue='Tienda')
+    # plt.title('Gráfica de Dispersión por Tienda')
+    # plt.xlabel('Producto')
+    # plt.ylabel('Precio')
+    # plt.xticks(rotation=45, horizontalalignment='right')
+    # plt.legend(title='Tienda')
+    # plt.tight_layout()
+    # plt.show()
