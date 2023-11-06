@@ -1,89 +1,91 @@
 import re
-import openpyxl
-import requests
+
+import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.webdriver.edge.service import Service
+from selenium.webdriver.chrome.options import Options
 
-# Configura el WebDriver
-s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
-driver = webdriver.Edge(service=s)
 
-# Abre la URL
-url = 'https://pcel.com/electronica/televisores'
-driver.get(url)
+def setup_driver():
+    # Web driver para EDGE
+    # s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
+    # driver = webdriver.Edge(service=s)
+    # Define los headers para el request HTTP
+    # headers = {
+    #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
+    # }
 
-# Obtén el contenido de la página
-page_source = driver.page_source
-soup = BeautifulSoup(page_source, 'html.parser')
+    # Web driver para Chrome
+    webdriver_path = 'C:/Users/Alejandro/chrome/chromedriver.exe'
+    options = Options()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    prefs = {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_setting_values.geolocation": 2,
+    }
+    options.add_experimental_option("prefs", prefs)
+    driver = webdriver.Chrome(webdriver_path, options=options)
+    return driver
 
-# Definiendo la URL base y headers
-base_url = 'https://pcel.com/electronica/televisores'
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
-}
 
-monitors = []
-monitor_elements = soup.find_all('div', class_='name')
+def scrape_pcel(urls):
+    monitors = []
+    regex = re.compile(
+        r"(?P<tipo>[\w\s]+)\sde\s(?P<pulgadas>\d+(\.\d+)?\")?.*?Resolución\s*(?P<resolucion>[\d\sx]+)?.*?(?P<ms>\d+\sms)?")
 
-# Modifica la expresión regular
-regex = re.compile(r"(?P<tipo>[\w\s]+)\sde\s(?P<pulgadas>\d+(\.\d+)?\")?.*?Resolución\s*(?P<resolucion>[\d\sx]+)?.*?(?P<ms>\d+\sms)?")
+    for base_url in urls:
+        driver = setup_driver()
+        # Abre la URL
+        driver.get(base_url)
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
 
-for monitor_element in monitor_elements:
-    description = monitor_element.a.text
-    match = regex.search(description)
-    if match:
-        # Nueva línea para extraer el precio
-        price_div = monitor_element.find_next('div', class_='price')
-        price = price_div.text.strip() if price_div else 'No disponible'
+        next_page = True
+        while next_page:
+            monitor_elements = soup.find_all('div', class_='name')
+            for monitor_element in monitor_elements:
+                description = monitor_element.a.text
+                match = regex.search(description)
+                if match:
+                    price_div = monitor_element.find_next('div', class_='price')
+                    price = price_div.text.strip() if price_div else 'No disponible'
 
-        # Añadir el precio al diccionario
-        monitor_info = match.groupdict()
-        monitor_info['Precio'] = price
+                    # Buscar el elemento de imagen al mismo nivel que el elemento de nombre
+                    image_div = monitor_element.find_next('div', class_='image')
+                    image_url = image_div.find('img')['src'] if image_div else 'No disponible'
 
-        monitors.append(monitor_info)
+                    monitor_info = match.groupdict()
+                    monitor_info['Precio'] = price
+                    monitor_info['URL Imagen'] = image_url
+                    monitor_info['Tienda'] = 'PCEL'
+                    monitors.append(monitor_info)
 
-# getting the "Next →" HTML element
-next_li_element = soup.find('li', class_='next')
+            # Busca si hay una página siguiente
+            next_li_element = soup.find('li', class_='next')
+            if next_li_element and next_li_element.find('a'):
+                next_page_url = next_li_element.find('a', href=True)['href']
+                driver.get(base_url + next_page_url)
+                page_source = driver.page_source
+                soup = BeautifulSoup(page_source, 'html.parser')
+            else:
+                next_page = False
 
-# if there is a next page to scrape
-while next_li_element is not None:
-    next_page_relative_url = next_li_element.find('a', href=True)['href']
+        driver.quit()
+    return monitors
 
-    # getting the new page
-    page = requests.get(base_url + next_page_relative_url, headers=headers)
 
-    # parsing the new page
-    soup = BeautifulSoup(page.text, 'html.parser')
+# URLs a scrapear en PCEL
+pcel_urls = [
+    'https://pcel.com/index.php?route=product/search&filter_name=televisión 1366',
+    'https://pcel.com/index.php?route=product/search&filter_name=televisión 1920',
+    'https://pcel.com/index.php?route=product/search&filter_name=Televisi%C3%B3n%203840'
+]
 
-    # scraping logic...
-    monitor_elements = soup.find_all('div', class_='name')
-    for monitor_element in monitor_elements:
-        description = monitor_element.a.text
-        match = regex.search(description)
-        if match:
-            monitors.append(match.groupdict())
+# Obtener los datos de PCEL
+pcel_data = scrape_pcel(pcel_urls)
 
-    # looking for the "Next →" HTML element in the new page
-    next_li_element = soup.find('li', class_='next')
+# Crear un DataFrame para los datos de PCEL
+pcel_df = pd.DataFrame(pcel_data)
 
-# Crear un nuevo libro de trabajo y seleccionar la hoja activa
-wb = openpyxl.Workbook()
-sheet = wb.active
-
-# Escribir el encabezado en la primera fila
-header = ['Tipo', 'Pulgadas', 'Resolución', 'Precio']  # Añadido 'Precio'
-for col_num, header_text in enumerate(header, 1):
-    sheet.cell(row=1, column=col_num).value = header_text
-
-# Escribir los datos en las siguientes filas
-for row_num, monitor in enumerate(monitors, 2):
-    sheet.cell(row=row_num, column=1).value = monitor['tipo']
-    sheet.cell(row=row_num, column=2).value = monitor['pulgadas']
-    sheet.cell(row=row_num, column=3).value = monitor['resolucion']
-    sheet.cell(row=row_num, column=4).value = monitor['Precio']  # Añadido columna para 'Precio'
-
-# Guardar el libro de trabajo en un archivo
-wb.save('ws_results\\pantallaspcel.xlsx')
-
-driver.quit()
+# Guardar los datos en un archivo Excel
+pcel_df.to_excel('pantallas_pcel.xlsx', index=False)
