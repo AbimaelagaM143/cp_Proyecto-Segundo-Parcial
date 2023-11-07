@@ -248,7 +248,7 @@ if __name__ == '__main__':
             print(f'Error: {e}')
         i += 1
 
-# Crear poster de hd
+    # Crear poster de hd
     bg_image = Create.Poster(img_name='HD.png')
     background_files = glob.glob('media/backgrounds/*')
     filename = np.random.choice(background_files)
