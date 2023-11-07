@@ -22,6 +22,9 @@ import requests
 from PIL import Image
 from io import BytesIO
 
+import numpy as np
+
+
 def setup_driver():
     # Web driver para EDGE
     # s = Service('C:\\Users\\Abima\\Downloads\\edgedriver_win64\\msedgedriver.exe')
@@ -120,12 +123,30 @@ if __name__ == '__main__':
 
     # Imprimimos los productos más económicos
     print("Producto más económico (1366 x 768 Pixeles):")
+    if resolution_1['URL Imagen'].startswith('https://www.soriana.com/'):
+        resolution_1['Tienda'] = 'Soriana'
+    elif resolution_1['URL Imagen'].startswith('https://images.pcel.com/'):
+        resolution_1['Tienda'] = 'PCEL'
+    elif resolution_1['URL Imagen'].startswith('https://www.cyberpuerta.mx/'):
+        resolution_1['Tienda'] = 'Cyberpuerta'
     print(resolution_1)
 
     print("Producto más económico (1920 x 1080 Pixeles):")
+    if resolution_2['URL Imagen'].startswith('https://www.soriana.com/'):
+        resolution_2['Tienda'] = 'Soriana'
+    elif resolution_2['URL Imagen'].startswith('https://images.pcel.com/'):
+        resolution_2['Tienda'] = 'PCEL'
+    elif resolution_2['URL Imagen'].startswith('https://www.cyberpuerta.mx/'):
+        resolution_2['Tienda'] = 'Cyberpuerta'
     print(resolution_2)
 
     print("Producto más económico (3840 x 2160 Pixeles):")
+    if resolution_3['URL Imagen'].startswith('https://www.soriana.com/'):
+        resolution_3['Tienda'] = 'Soriana'
+    elif resolution_3['URL Imagen'].startswith('https://images.pcel.com/'):
+        resolution_3['Tienda'] = 'PCEL'
+    elif resolution_3['URL Imagen'].startswith('https://www.cyberpuerta.mx/'):
+        resolution_3['Tienda'] = 'Cyberpuerta'
     print(resolution_3)
 
     # Obtenemos los datos de todos los productos
@@ -190,3 +211,40 @@ if __name__ == '__main__':
     plt.legend(title='Tienda')
     plt.savefig('scatterplot.jpg')
     plt.show()
+
+    # Lista de URLs de las imágenes
+    image_urls = [
+        # obtain url of resolution_1
+        resolution_1['URL Imagen'],
+        # obtain url of resolution_2
+        resolution_2['URL Imagen'],
+        # obtain url of resolution_3
+        resolution_3['URL Imagen']
+    ]
+
+    # Carpeta de destino para guardar las imágenes
+    output_folder = 'source'
+
+    # Crea la carpeta de destino si no existe
+    os.makedirs(output_folder, exist_ok=True)
+    i = 1
+
+    for url in image_urls:
+        try:
+            # Realiza una solicitud GET para obtener la imagen desde la URL
+            response = requests.get(url)
+
+            if response.status_code == 200:
+                # Lee la imagen desde la respuesta y crea una instancia de imagen
+                image = Image.open(BytesIO(response.content))
+
+                # Redimensiona la imagen a 300x300 píxeles
+                image = image.resize((1000, 800))
+                # Save image in source folder
+                image.save(f'source/{i}.jpg')
+            else:
+                print(f'Error al descargar la imagen desde {url}')
+        except Exception as e:
+            print(f'Error: {e}')
+        i += 1
+
