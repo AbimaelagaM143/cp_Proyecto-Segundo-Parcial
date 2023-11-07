@@ -248,3 +248,64 @@ if __name__ == '__main__':
             print(f'Error: {e}')
         i += 1
 
+# Crear poster de hd
+    bg_image = Create.Poster(img_name='HD.png')
+    background_files = glob.glob('media/backgrounds/*')
+    filename = np.random.choice(background_files)
+    slogan = "Aprovecha esta oferta, Televisión HD 1366 x 768 Pixeles"
+
+    bg_image.add_image(filename, position='cc', scale='fit')
+    # Add image of resolution_1
+    bg_image.add_image('source/1.jpg', position='cc', scale=30)
+    bg_image.text(slogan, position=(35, 10), align='center', textbox_width=450, font_style='media/fonts/Poster_Font.ttf',
+                  color='red')
+    # obtain precio of resolution_1
+    bg_image.text(resolution_1['Precio'].split('\n')[0], position=(190, 350), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font_3.ttf', color='red', text_size=50)
+    # obtain Tienda of resolution_1 and apppend to final of sentence: "Solo en "
+    bg_image.text('Solo en ' + resolution_1['Tienda'], position=(120, 420), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font.ttf', color='red')
+    bg_image.frame(thickness=8)
+    bg_image.filter(rgb=(255, 255, 255), opacity=0)
+
+    # Crear poster de fhd
+    bg_image = Create.Poster(img_name='FHD.png')
+    background_files = glob.glob('media/backgrounds/*')
+    filename = np.random.choice(background_files)
+    slogan = "Aprovecha esta oferta, Televisión FHD 1920 x 1080 Pixeles"
+
+    bg_image.add_image(filename, position='cc', scale='fit')
+
+    bg_image.add_image('source/2.jpg', position='cc', scale=30)
+    bg_image.text(slogan, position=(35, 10), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font.ttf',
+                  color='red')
+
+    bg_image.text(resolution_2['Precio'].split('\n')[0], position=(190, 350), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font_3.ttf', color='red', text_size=50)
+
+    bg_image.text('Solo en ' + resolution_2['Tienda'], position=(120, 420), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font.ttf', color='red')
+    bg_image.frame(thickness=8)
+    bg_image.filter(rgb=(255, 255, 255), opacity=0)
+
+    # Crear poster de 4k
+    bg_image = Create.Poster(img_name='4k.png')
+    background_files = glob.glob('media/backgrounds/*')
+    filename = np.random.choice(background_files)
+    slogan = "Aprovecha esta oferta, Televisión 4K UHD 3840 x 2160 Pixeles"
+
+    bg_image.add_image(filename, position='cc', scale='fit')
+
+    bg_image.add_image('source/3.jpg', position='cc', scale=30)
+    bg_image.text(slogan, position=(35, 10), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font.ttf',
+                  color='red')
+
+    bg_image.text(resolution_3['Precio'].split('\n')[0], position=(190, 350), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font_3.ttf', color='red', text_size=50)
+
+    bg_image.text('Solo en ' + resolution_3['Tienda'], position=(120, 420), align='center', textbox_width=450,
+                  font_style='media/fonts/Poster_Font.ttf', color='red')
+    bg_image.frame(thickness=8)
+    bg_image.filter(rgb=(255, 255, 255), opacity=0)
