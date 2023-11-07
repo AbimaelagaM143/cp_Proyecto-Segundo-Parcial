@@ -2,15 +2,16 @@
 import multiprocessing
 
 import pandas as pd
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ws_cyberpuerta import scrape_cyberpuerta
-from ws_pcel import scrape_pcel
-from ws_soriana import scrape_soriana
+from ws_cyberpuerta import precio_a_numero, scrape_cyberpuerta
+from ws_pcel import precio_a_numero,scrape_pcel
+from ws_soriana import precio_a_numero,scrape_soriana
 
 
 def setup_driver():
@@ -19,6 +20,7 @@ def setup_driver():
     # driver = webdriver.Edge(service=s)
 
     # Web driver para Chrome
+    # driver = webdriver.Chrome()
     webdriver_path = 'C:/Users/Alejandro/chrome/chromedriver.exe'
     options = Options()
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
@@ -127,6 +129,42 @@ if __name__ == '__main__':
     cyberpuerta_df = pd.DataFrame(cyberpuerta_data)
     # Concatenate all DataFrames
     all_data = pd.concat([soriana_df, pcel_df, cyberpuerta_df])
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+soriana_df['Tienda'] = 'Soriana'
+pcel_df['Tienda'] = 'PCEL'
+cyberpuerta_df['Tienda'] = 'Cyberpuerta'
+
+all_data['Precio'] = all_data['Precio'].apply(precio_a_numero)
+
+
+
+
+# Unimos los DataFrames para la visualización
+complete_data = pd.concat([soriana_df, pcel_df, cyberpuerta_df])
+
+# 1 Crear un gráfico de cajas para cada resolución
+for resolution in complete_data['Resolución'].unique():
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(data=complete_data[complete_data['Resolución'] == resolution],
+                x='Tienda', y='Precio', palette="Set1")
+    plt.title(f'Comparación de precios para {resolution}')
+    plt.ylabel('Precio ($)')
+    plt.xlabel('Tienda')
+    plt.show()
+
+# 2. Gráfica de dispersión por tamaño/presentación
+plt.figure(figsize=(14, 8))
+sns.scatterplot(data=complete_data.sort_values('Precio'),
+                x='Titulo', y='Precio', hue='Tienda', style='Tienda', s=100)
+plt.xticks(rotation=90)  # Rota las etiquetas del eje x para mejor lectura
+plt.title('Comparación de precios por producto y tienda')
+plt.ylabel('Precio ($)')
+plt.xlabel('Producto')
+plt.legend(title='Tienda')
+plt.show()
 
     # # Creamos gráficas de caja por tamaño/presentación del producto
     # import matplotlib.pyplot as plt
