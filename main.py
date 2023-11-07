@@ -15,6 +15,12 @@ from ws_cyberpuerta import precio_a_numero, scrape_cyberpuerta
 from ws_pcel import precio_a_numero, scrape_pcel
 from ws_soriana import precio_a_numero, scrape_soriana
 
+from niceposter import Create
+import glob
+import os
+import requests
+from PIL import Image
+from io import BytesIO
 
 def setup_driver():
     # Web driver para EDGE
