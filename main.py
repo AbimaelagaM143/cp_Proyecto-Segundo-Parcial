@@ -2,6 +2,8 @@
 import multiprocessing
 
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -10,8 +12,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from ws_cyberpuerta import precio_a_numero, scrape_cyberpuerta
-from ws_pcel import precio_a_numero,scrape_pcel
-from ws_soriana import precio_a_numero,scrape_soriana
+from ws_pcel import precio_a_numero, scrape_pcel
+from ws_soriana import precio_a_numero, scrape_soriana
 
 
 def setup_driver():
@@ -86,9 +88,11 @@ if __name__ == '__main__':
     ]
 
     # Creamos procesos para cada tienda
-    soriana_process = multiprocessing.Process(target=scrape_soriana, args=(soriana_urls, shared_dict, shared_dict_total))
+    soriana_process = multiprocessing.Process(target=scrape_soriana,
+                                              args=(soriana_urls, shared_dict, shared_dict_total))
     pcel_process = multiprocessing.Process(target=scrape_pcel, args=(pcel_urls, shared_dict, shared_dict_total))
-    cyberpuerta_process = multiprocessing.Process(target=scrape_cyberpuerta, args=(cyberpuerta_urls, shared_dict, shared_dict_total))
+    cyberpuerta_process = multiprocessing.Process(target=scrape_cyberpuerta,
+                                                  args=(cyberpuerta_urls, shared_dict, shared_dict_total))
 
     # Iniciamos los procesos
     soriana_process.start()
@@ -130,64 +134,53 @@ if __name__ == '__main__':
     # Concatenate all DataFrames
     all_data = pd.concat([soriana_df, pcel_df, cyberpuerta_df])
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+    soriana_df['Tienda'] = 'Soriana'
+    pcel_df['Tienda'] = 'PCEL'
+    cyberpuerta_df['Tienda'] = 'Cyberpuerta'
 
-soriana_df['Tienda'] = 'Soriana'
-pcel_df['Tienda'] = 'PCEL'
-cyberpuerta_df['Tienda'] = 'Cyberpuerta'
+    all_data['Precio'] = all_data['Precio'].apply(precio_a_numero)
 
-all_data['Precio'] = all_data['Precio'].apply(precio_a_numero)
+    # Unimos los DataFrames para la visualización
+    complete_data = pd.concat([soriana_df, pcel_df, cyberpuerta_df])
+    resolution_mapping = {
+        'HD 1366 x 768': '1366 x 768',
+        'FHD 1920 x 1080': '1920 x 1080',
+        '4K UHD 3840 x 2160': '3840 x 2160',
+        '1920 x 1080 ': '1920 x 1080',
+        '3840 x 2160 ': '3840 x 2160',
+        ': 1366 x 768 Pixeles': '1366 x 768',
+        ': 1920 x 1080 Pixeles': '1920 x 1080',
+        ': 3840 x 2160 Pixeles': '3840 x 2160'
+    }
 
+    # Reemplazar los valores en la columna 'Resolución'
+    complete_data['Resolución'] = complete_data['Resolución'].replace(resolution_mapping)
+    complete_data['Precio'] = complete_data['Precio'].apply(precio_a_numero)
+    complete_data['Precio'] = pd.to_numeric(complete_data['Precio'], errors='coerce')
+    # Remove row of complete_data with ': 1280 x 720 Pixeles' in 'Resolución'
+    complete_data = complete_data[complete_data['Resolución'] != ': 1280 x 720 Pixeles']
+    # Export complete_data to .xlsx
+    complete_data.to_excel('complete_data.xlsx', index=False)
 
+    # 1 Crear un gráfico de cajas para cada resolución
+    for resolution in complete_data['Resolución'].unique():
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(data=complete_data[complete_data['Resolución'] == resolution],
+                    x='Tienda', y='Precio', palette="Set1")
+        plt.title(f'Comparación de precios para {resolution}')
+        plt.ylabel('Precio ($)')
+        plt.xlabel('Tienda')
+        plt.savefig(f'boxplot_{resolution}.jpg')
+        plt.show()
 
-
-# Unimos los DataFrames para la visualización
-complete_data = pd.concat([soriana_df, pcel_df, cyberpuerta_df])
-
-# 1 Crear un gráfico de cajas para cada resolución
-for resolution in complete_data['Resolución'].unique():
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(data=complete_data[complete_data['Resolución'] == resolution],
-                x='Tienda', y='Precio', palette="Set1")
-    plt.title(f'Comparación de precios para {resolution}')
+    # 2. Gráfica de dispersión por tamaño/presentación
+    plt.figure(figsize=(14, 8))
+    sns.scatterplot(data=complete_data.sort_values('Precio'),
+                    x='Titulo', y='Precio', hue='Tienda', style='Tienda', s=100)
+    plt.xticks(rotation=90)  # Rota las etiquetas del eje x para mejor lectura
+    plt.title('Comparación de precios por producto y tienda')
     plt.ylabel('Precio ($)')
-    plt.xlabel('Tienda')
+    plt.xlabel('Producto')
+    plt.legend(title='Tienda')
+    plt.savefig('scatterplot.jpg')
     plt.show()
-
-# 2. Gráfica de dispersión por tamaño/presentación
-plt.figure(figsize=(14, 8))
-sns.scatterplot(data=complete_data.sort_values('Precio'),
-                x='Titulo', y='Precio', hue='Tienda', style='Tienda', s=100)
-plt.xticks(rotation=90)  # Rota las etiquetas del eje x para mejor lectura
-plt.title('Comparación de precios por producto y tienda')
-plt.ylabel('Precio ($)')
-plt.xlabel('Producto')
-plt.legend(title='Tienda')
-plt.show()
-
-    # # Creamos gráficas de caja por tamaño/presentación del producto
-    # import matplotlib.pyplot as plt
-    #
-    # plt.figure(figsize=(10, 6))
-    # data_df.boxplot(column='Precio', by='Resolución', grid=False)
-    # plt.title('Gráfica de Caja por Resolución')
-    # plt.ylabel('Precio')
-    # plt.xlabel('Resolución')
-    # plt.xticks(rotation=45)
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # # Creamos una gráfica de dispersión
-    # import seaborn as sns
-    #
-    # sns.set(style='whitegrid')
-    # plt.figure(figsize=(12, 6))
-    # sns.scatterplot(data=data_df, x='Titulo', y='Precio', hue='Tienda')
-    # plt.title('Gráfica de Dispersión por Tienda')
-    # plt.xlabel('Producto')
-    # plt.ylabel('Precio')
-    # plt.xticks(rotation=45, horizontalalignment='right')
-    # plt.legend(title='Tienda')
-    # plt.tight_layout()
-    # plt.show()

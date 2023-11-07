@@ -14,6 +14,8 @@ def scrape_cyberpuerta(urls, shared_dict, shared_dict_total):
     resolution_1_data = []
     resolution_2_data = []
     resolution_3_data = []
+    # Lista para almacenar la información de los monitores
+    monitors = []
 
     for URL in urls:
         driver = setup_driver()
@@ -28,9 +30,6 @@ def scrape_cyberpuerta(urls, shared_dict, shared_dict_total):
         # Obtén el contenido de la página
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, 'html.parser')
-
-        # Lista para almacenar la información de los monitores
-        monitors = []
 
         # Encuentra los elementos que contienen la información de los monitores
         monitor_elements = soup.find_all('li', class_=re.compile(r'cell productData small-12 small-order-\d+'))
@@ -62,18 +61,18 @@ def scrape_cyberpuerta(urls, shared_dict, shared_dict_total):
 
         # Cerrar el WebDriver
         driver.quit()
-        # Generate another dictionary with all the data monitors, but only columns tipo, resolucion, Precio y URL Imagen
-        data = []
-        for monitor in monitors:
-            data.append({
-                'Titulo': monitor['Titulo'],
-                'Precio': monitor['Precio'],
-                'Resolución': monitor['Resolución'],
-                'URL Imagen': monitor['URL Imagen']
-            })
+    # Generate another dictionary with all the data monitors, but only columns tipo, resolucion, Precio y URL Imagen
+    data = []
+    for monitor in monitors:
+        data.append({
+            'Titulo': monitor['Titulo'],
+            'Precio': monitor['Precio'],
+            'Resolución': monitor['Resolución'],
+            'URL Imagen': monitor['URL Imagen']
+        })
 
-        # Add data to dictionary shared_dict_total
-        shared_dict_total['cyberpuerta'] = monitors
+    # Add data to dictionary shared_dict_total
+    shared_dict_total['cyberpuerta'] = monitors
 
     # Encontrar el producto más económico en cada categoría de resolución
     resolution_1_min = min(resolution_1_data, key=lambda x: precio_a_numero(x['Precio']))
