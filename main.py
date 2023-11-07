@@ -63,12 +63,7 @@ def close_popups(driver_):
 if __name__ == '__main__':
     # Creamos un diccionario compartido para almacenar los productos más económicos
     shared_dict = multiprocessing.Manager().dict()
-    shared_dict_total = multiprocessing.Manager().dict(soriana=[], pcel=[], cyberpuerta=[])
-
-    lock = multiprocessing.Lock()
-
-    # Creamos una lista para almacenar todos los datos de productos
-    all_data = []
+    shared_dict_total = multiprocessing.Manager().dict()
 
     # Definimos las URLs de cada tienda
     soriana_urls = [
@@ -120,12 +115,17 @@ if __name__ == '__main__':
     print("Producto más económico (3840 x 2160 Pixeles):")
     print(resolution_3)
 
-    # Convert shared_dict_total to a list
-    print(shared_dict_total)
+    # Obtenemos los datos de todos los productos
+    soriana_data = shared_dict_total['soriana']
+    pcel_data = shared_dict_total['pcel']
+    cyberpuerta_data = shared_dict_total['cyberpuerta']
 
-    # Convertimos la lista de datos en un DataFrame
-    data_df = pd.DataFrame(shared_dict_total)
-    print(data_df)
+    # Convert soriana_data, pcel_data y cyberpuerta_data to DataFrame
+    soriana_df = pd.DataFrame(soriana_data)
+    pcel_df = pd.DataFrame(pcel_data)
+    cyberpuerta_df = pd.DataFrame(cyberpuerta_data)
+    # Concatenate all DataFrames
+    all_data = pd.concat([soriana_df, pcel_df, cyberpuerta_df])
 
     # # Creamos gráficas de caja por tamaño/presentación del producto
     # import matplotlib.pyplot as plt

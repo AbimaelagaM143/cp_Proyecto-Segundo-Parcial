@@ -39,16 +39,16 @@ def scrape_pcel(urls, shared_dict, shared_dict_total):
                     monitor_info['Tienda'] = 'PCEL'
                     monitors.append(monitor_info)
 
-            # Busca si hay una página siguiente
-            next_li_element = soup.find('li', class_='next')
-            if next_li_element and next_li_element.find('a'):
-                next_page_url = next_li_element.find('a', href=True)['href']
-                driver.get(base_url + next_page_url)
-                page_source = driver.page_source
-                soup = BeautifulSoup(page_source, 'html.parser')
-            else:
-                next_page = False
-        # Cerrar el WebDriver
+                # Busca si hay una página siguiente
+                next_li_element = soup.find('li', class_='next')
+                if next_li_element and next_li_element.find('a'):
+                    next_page_url = next_li_element.find('a', href=True)['href']
+                    driver.get(base_url + next_page_url)
+                    page_source = driver.page_source
+                    soup = BeautifulSoup(page_source, 'html.parser')
+                else:
+                    next_page = False
+
         driver.quit()
 
     # Lista para almacenar los datos de productos de cada categoría de resolución
@@ -65,21 +65,46 @@ def scrape_pcel(urls, shared_dict, shared_dict_total):
             resolution_3_data.append(monitor)
 
     # Encontrar el producto más económico en cada categoría de resolución
-    resolution_1_min = min(resolution_1_data, key=lambda x: x['Precio'])
-    resolution_2_min = min(resolution_2_data, key=lambda x: x['Precio'])
-    resolution_3_min = min(resolution_3_data, key=lambda x: x['Precio'])
+    resolution_1_min = min(resolution_1_data, key=lambda x: precio_a_numero(x['Precio']))
+
+    resolution_2_min = min(resolution_2_data, key=lambda x: precio_a_numero(x['Precio']))
+
+    resolution_3_min = min(resolution_3_data, key=lambda x: precio_a_numero(x['Precio']))
 
     # Almacenar los productos más económicos en el diccionario compartido
     # Only if actual value is worse than the new one
-    if shared_dict.get('resolution_1', {}).get('Precio', '0') > resolution_1_min['Precio']:
+    if resolution_1_data and (not shared_dict.get('resolution_1') or precio_a_numero(
+            shared_dict.get('resolution_1', {}).get('Precio', 'Infinity')) > precio_a_numero(
+            resolution_1_min['Precio'])):
         shared_dict['resolution_1'] = resolution_1_min
-    if shared_dict.get('resolution_2', {}).get('Precio', '0') > resolution_2_min['Precio']:
+    if resolution_2_data and (not shared_dict.get('resolution_2') or precio_a_numero(
+            shared_dict.get('resolution_2', {}).get('Precio', 'Infinity')) > precio_a_numero(
+            resolution_2_min['Precio'])):
         shared_dict['resolution_2'] = resolution_2_min
-    if shared_dict.get('resolution_3', {}).get('Precio', '0') > resolution_3_min['Precio']:
+    if resolution_3_data and (not shared_dict.get('resolution_3') or precio_a_numero(
+            shared_dict.get('resolution_3', {}).get('Precio', 'Infinity')) > precio_a_numero(
+            resolution_3_min['Precio'])):
         shared_dict['resolution_3'] = resolution_3_min
 
-    # update shared_dict_total with monitors
-    shared_dict_total['pcel'].extend(monitors)
+    # Generate another dictionary with all the data monitors, but only columns tipo, resolucion, Precio y URL Imagen
+    data = []
+    for monitor in monitors:
+        data.append({
+            'Titulo': monitor['tipo'],
+            'Precio': monitor['Precio'],
+            'Resolución': monitor['resolucion'],
+            'URL Imagen': monitor['URL Imagen']
+        })
+
+    # Add data to dictionary shared_dict_total
+    shared_dict_total['pcel'] = data
+
+
+def precio_a_numero(precio):
+    # Elimina el símbolo de moneda y las comas, y convierte el resultado a float and remove any value after string .00
+    # Divide por el carácter de nueva línea y toma la primera parte
+    precio_sin_ofertas = precio.split('\n')[0]
+    return float(precio_sin_ofertas.replace('$', '').replace(',', ''))
 
 
 # Web driver para Chrome
